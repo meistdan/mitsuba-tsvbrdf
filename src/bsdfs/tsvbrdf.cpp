@@ -135,7 +135,7 @@ public:
 	}
 
 	Float getKs(Float u, Float v, Float t) const {
-		return eval(m_Ks, u, v, t);
+		return std::max(0.0f, eval(m_Ks, u, v, t));
 	}
 
 	Float getSigma(Float u, Float v, Float t) const {
@@ -198,7 +198,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		
+
 		Spectrum result(0.0f);
 
 		if (hasDiffuse) {
@@ -229,7 +229,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		
+
 		Vector H = normalize(bRec.wo + bRec.wi);
 
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
@@ -269,7 +269,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		
+
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
 		Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
