@@ -298,6 +298,9 @@ public:
 			}
 		}
 
+		if (sigma <= 0.0f)
+			choseSpecular = false;
+
 		if (choseSpecular) {
 			
 			/* Sample normal from Gaussian distribution */
@@ -325,6 +328,7 @@ public:
 		bRec.eta = 1.0f;
 
 		_pdf = pdf(bRec, ESolidAngle);
+		
 
 		if (_pdf == 0)
 			return Spectrum(0.0f);
