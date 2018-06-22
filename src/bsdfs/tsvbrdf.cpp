@@ -112,7 +112,6 @@ public:
 	}
 
 	Float eval(const Parameter &p, int x, int y, Float t) const {
-		std::swap(x, y);
 		return Float(p.factors[0].at<float>(y, x) * p.phi.eval((t - p.factors[2].at<float>(y, x))
 			/ p.factors[1].at<float>(y, x)) + p.factors[3].at<float>(y, x));
 	}
@@ -131,7 +130,7 @@ public:
 	}
 
 	Float getKd(Float u, Float v, Float t, int c) const {
-		return eval(m_Kd[2 - c], u, v, t);
+		return std::max(0.0f, eval(m_Kd[2 - c], u, v, t));
 	}
 
 	Float getKs(Float u, Float v, Float t) const {
@@ -198,6 +197,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Spectrum result(0.0f);
 
@@ -229,6 +229,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Vector H = normalize(bRec.wo + bRec.wi);
 
@@ -269,6 +270,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
