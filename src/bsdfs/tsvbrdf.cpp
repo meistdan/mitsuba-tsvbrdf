@@ -198,6 +198,11 @@ public:
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
 
+		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
+
+		if (sigma <= 0.0f)
+			hasSpecular = false;
+
 		Spectrum result(0.0f);
 
 		if (hasDiffuse) {
@@ -209,7 +214,6 @@ public:
 		if (hasSpecular) {
 			Vector H = normalize(bRec.wo + bRec.wi);
 			Float ks = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
-			Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 			Float spec = ks / (4.0f * Frame::cosTheta(bRec.wi)) * exp(-sigma * Frame::cosTheta2(H));
 			Spectrum specular;
 			specular.fromLinearRGB(spec, spec, spec);
@@ -236,6 +240,9 @@ public:
 		Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
 		Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
 		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
+
+		if (sigma <= 0.0f)
+			hasSpecular = false;
 
 		Float pd = std::max(r, std::max(g, b));
 		Float ps = s;
@@ -284,6 +291,9 @@ public:
 		if (!hasSpecular && !hasDiffuse)
 			return Spectrum(0.0f);
 
+		if (sigma <= 0.0f)
+			hasSpecular = false;
+
 		bool choseSpecular = hasSpecular;
 
 		if (hasDiffuse && hasSpecular) {
@@ -296,9 +306,6 @@ public:
 				choseSpecular = false;
 			}
 		}
-
-		if (sigma <= 0.0f)
-			choseSpecular = false;
 
 		if (choseSpecular) {
 			
