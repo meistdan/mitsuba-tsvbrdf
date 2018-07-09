@@ -197,6 +197,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasDiffuse = false;
 
 		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
@@ -214,7 +215,8 @@ public:
 		if (hasSpecular) {
 			Vector H = normalize(bRec.wo + bRec.wi);
 			Float ks = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
-			Float spec = ks / (4.0f * Frame::cosTheta(bRec.wi)) * exp(-sigma * Frame::cosTheta2(H));
+			Float spec = ks / (4.0f * Frame::cosTheta(bRec.wi)) *
+				exp(-sigma * acosf(Frame::cosTheta(H)) * acosf(Frame::cosTheta(H)));
 			Spectrum specular;
 			specular.fromLinearRGB(spec, spec, spec);
 			result += specular;
@@ -232,6 +234,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasDiffuse = false;
 
 		Vector H = normalize(bRec.wo + bRec.wi);
 
@@ -241,7 +244,7 @@ public:
 		Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
 		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
 
-		if (sigma <= 0.0f)
+		if (sigma <= 0.0f) 
 			hasSpecular = false;
 
 		Float pd = std::max(r, std::max(g, b));
@@ -251,8 +254,8 @@ public:
 		ps *= scale;
 
 		Float diffusePdf = warp::squareToCosineHemispherePdf(bRec.wo);
-		Float specularPdf = exp(-sigma * Frame::cosTheta2(H)) * Frame::cosTheta(H) / (4.0f * absDot(bRec.wo, H));
-		specularPdf *= sigma / M_PI * (1.0f - exp(-sigma));
+		Float specularPdf = exp(-sigma * Frame::sinTheta2(H)) / (4.0f * absDot(bRec.wo, H));
+		specularPdf *= sigma / (M_PI * (1.0f - exp(-sigma)));
 
 		if (hasDiffuse && hasSpecular)
 			return ps * specularPdf + pd * diffusePdf;
@@ -275,6 +278,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasDiffuse = false;
 
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
@@ -291,7 +295,7 @@ public:
 		if (!hasSpecular && !hasDiffuse)
 			return Spectrum(0.0f);
 
-		if (sigma <= 0.0f)
+		if (sigma <= 0.0f) 
 			hasSpecular = false;
 
 		bool choseSpecular = hasSpecular;
@@ -301,8 +305,7 @@ public:
 				sample.x /= ps;
 			}
 			else {
-				sample.x = (sample.x - ps)
-					/ pd;
+				sample.x = (sample.x - ps) / pd;
 				choseSpecular = false;
 			}
 		}
@@ -312,8 +315,8 @@ public:
 			/* Sample normal from Gaussian distribution */
 			Float sinPhiM, cosPhiM, cosThetaM, sinThetaM;
 			math::sincos((2.0f * M_PI) * sample.y, &sinPhiM, &cosPhiM);
-			cosThetaM = std::sqrt(-math::fastlog(exp(-sigma) - sample.x * (exp(-sigma) - 1.0f)) / sigma);
-			sinThetaM = std::sqrt(std::max((Float)0, 1 - cosThetaM*cosThetaM));
+			sinThetaM = std::sqrt(-math::fastlog(1.0f + sample.x * (exp(-sigma) - 1.0f)) / sigma);
+			cosThetaM = std::sqrt(std::max((Float)0, 1 - sinThetaM*sinThetaM));
 
 			Normal m = Vector(
 				sinThetaM * cosPhiM,
