@@ -118,13 +118,18 @@ public:
 
 	Float eval(const Parameter &p, Float u, Float v, Float t) const {
 		Point2 scaled(fmod(u * (m_width - 1), m_width), fmod(v * (m_height - 1), m_height));
+		while (scaled.x < 0.0f) scaled.x += m_width;
+		while (scaled.y < 0.0f) scaled.y += m_height;
 		Point2 upper(ceil(scaled.x), ceil(scaled.y));
 		Point2 lower(floor(scaled.x), floor(scaled.y));
+		if (upper.x > m_width - 1) upper.x = m_width - 1;
+		if (upper.y > m_height - 1) upper.y = m_height - 1;
 		Point2 diff(upper.x - scaled.x, upper.y - scaled.y);
 		Float s0 = eval(p, int(lower.x), int(lower.y), t);
 		Float s1 = eval(p, int(upper.x), int(lower.y), t);
 		Float s2 = eval(p, int(lower.x), int(upper.y), t);
 		Float s3 = eval(p, int(upper.x), int(upper.y), t);
+		Float mx = mix(mix(s0, s1, diff.x), mix(s2, s3, diff.x), diff.y);
 		return mix(mix(s0, s1, diff.x), mix(s2, s3, diff.x), diff.y);
 		
 	}
@@ -197,6 +202,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
@@ -233,6 +239,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Vector H = normalize(bRec.wo + bRec.wi);
 
@@ -276,6 +283,7 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
+		hasSpecular = false;
 
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
