@@ -313,6 +313,7 @@ public:
 			Float sinPhiM, cosPhiM, cosThetaM, sinThetaM;
 			math::sincos((2.0f * M_PI) * sample.y, &sinPhiM, &cosPhiM);
 			sinThetaM = std::sqrt(-math::fastlog(1.0f + sample.x * (exp(-sigma) - 1.0f)) / sigma);
+			if (sample.x == 1.0f) sinThetaM = 1.0f;
 			cosThetaM = std::sqrt(std::max((Float)0, 1 - sinThetaM*sinThetaM));
 
 			Normal m = Vector(
