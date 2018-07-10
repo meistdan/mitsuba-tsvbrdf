@@ -4,7 +4,7 @@ import optparse
 import subprocess
 
 parser = optparse.OptionParser()
-parser.add_option('-m', '--mitsuba', help='the mitsuba executable', default='../../../build/binaries/RelWithDebInfo/mitsuba.exe')
+parser.add_option('-m', '--mitsuba', help='the mitsuba executable', default='../../../build/binaries/Release/mitsuba.exe')
 parser.add_option('-f', '--frames', help='number of frames', default=50)
 parser.add_option('-i', '--input', help='input scene name (xml file)')
 parser.add_option('-o', '--output', help='output directory')
