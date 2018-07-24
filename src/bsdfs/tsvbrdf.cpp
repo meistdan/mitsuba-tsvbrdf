@@ -202,7 +202,6 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		hasSpecular = false;
 
 		Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
@@ -239,7 +238,6 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		hasSpecular = false;
 
 		Vector H = normalize(bRec.wo + bRec.wi);
 
@@ -283,7 +281,6 @@ public:
 			&& (bRec.component == -1 || bRec.component == 0);
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
-		hasSpecular = false;
 
 		Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
