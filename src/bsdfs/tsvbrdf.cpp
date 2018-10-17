@@ -22,21 +22,22 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include <opencv2/opencv.hpp>
 
-#define USE_STAF 0
-
 MTS_NAMESPACE_BEGIN
 
 class TSVBRDFEvaluator {
 public:
-  static const int DEGREE = 6;
   virtual void load(const std::string &filepath) = 0;
   virtual Float getKd(Float u, Float v, Float t, int c) const = 0;
   virtual Float getKs(Float u, Float v, Float t) const = 0;
   virtual Float getSigma(Float u, Float v, Float t) const = 0;
+protected:
+  int m_width;
+  int m_height;
 };
 
 class STAFEvaluator : public  TSVBRDFEvaluator {
 public:
+  static const int DEGREE = 6;
   struct Polynom {
     Float coefs[DEGREE + 1];
     Float eval(Float t) const {
@@ -150,8 +151,6 @@ public:
   }
 
 private:
-  int m_width;
-  int m_height;
   Parameter m_Kd[3];
   Parameter m_Ks;
   Parameter m_sigma;
@@ -159,6 +158,7 @@ private:
 
 class PolyEvaluator : public  TSVBRDFEvaluator {
 public:
+  static const int DEGREE = 6;
   struct Parameter {
     cv::Mat coefs[DEGREE + 1];
   };
@@ -225,12 +225,87 @@ public:
   }
 
 private:
-  int m_width;
-  int m_height;
   Parameter m_Kd[3];
   Parameter m_Ks;
   Parameter m_sigma;
 };
+
+class FrameEvaluator : public  TSVBRDFEvaluator {
+public:
+  static const int FRAMES = 51;
+  struct Parameter {
+    cv::Mat frames[FRAMES];
+  };
+
+  void load(const std::string &filepath) {
+
+    // Images.
+    cv::Mat img;
+
+    // Kd.
+    for (int f = 0; f < FRAMES; ++f) {
+      img = cv::imread(filepath + "/Kd-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      for (int c = 0; c < 3; ++c)
+        cv::extractChannel(img, m_Kd[c].frames[f], c);
+    }
+
+    // Ks.
+    for (int f = 0; f < FRAMES; ++f)
+      m_Ks.frames[f] = cv::imread(filepath + "/Ks-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+
+    // Sigma.
+    for (int f = 0; f < FRAMES; ++f)
+      m_sigma.frames[f] = cv::imread(filepath + "/Sigma-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+
+    // Resolution.
+    m_width = img.size().width;
+    m_height = img.size().height;
+
+  }
+
+  Float eval(const Parameter &p, int x, int y, Float t) const {
+    if (x < 0 || x >= m_width) x = math::modulo(x, m_width);
+    if (y < 0 || y >= m_height) y = math::modulo(y, m_height);
+    t = math::clamp(t, 0.0f, 1.0f);
+    int i = math::roundToInt(t * (FRAMES - 1));
+    return p.frames[i].at<float>(y, x);
+  }
+
+  Float eval(const Parameter &p, Float u, Float v, Float t) const {
+    if (EXPECT_NOT_TAKEN(!std::isfinite(u) || !std::isfinite(v)))
+      return 0.0f;
+    u = u * m_width - 0.5f;
+    v = v * m_height - 0.5f;
+    int xPos = math::floorToInt(u), yPos = math::floorToInt(v);
+    Float dx1 = u - xPos, dx2 = 1.0f - dx1,
+      dy1 = v - yPos, dy2 = 1.0f - dy1;
+    return eval(p, xPos, yPos, t) * dx2 * dy2
+      + eval(p, xPos, yPos + 1, t) * dx2 * dy1
+      + eval(p, xPos + 1, yPos, t) * dx1 * dy2
+      + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
+  }
+
+  Float getKd(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_Kd[2 - c], u, v, t));
+  }
+
+  Float getKs(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_Ks, u, v, t));
+  }
+
+  Float getSigma(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_sigma, u, v, t));
+  }
+
+private:
+  Parameter m_Kd[3];
+  Parameter m_Ks;
+  Parameter m_sigma;
+};
+
+//typedef STAFEvaluator Evaluator;
+//typedef PolyEvaluator Evaluator;
+typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
@@ -459,11 +534,7 @@ public:
 private:
   std::string m_filepath;
   Float m_time;
-#if USE_STAF
-  STAFEvaluator m_evaluator;
-#else
-  PolyEvaluator m_evaluator;
-#endif
+  Evaluator m_evaluator;
 };
 
 // ================ Hardware shader implementation ================
