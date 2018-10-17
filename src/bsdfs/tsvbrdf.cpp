@@ -157,7 +157,7 @@ private:
   Parameter m_sigma;
 };
 
-class PolyfitEvaluator : public  TSVBRDFEvaluator {
+class PolyEvaluator : public  TSVBRDFEvaluator {
 public:
   struct Parameter {
     cv::Mat coefs[DEGREE + 1];
@@ -462,7 +462,7 @@ private:
 #if USE_STAF
   STAFEvaluator m_evaluator;
 #else
-  PolyfitEvaluator m_evaluator;
+  PolyEvaluator m_evaluator;
 #endif
 };
 
