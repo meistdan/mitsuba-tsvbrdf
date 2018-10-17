@@ -2,6 +2,7 @@ import sys
 import os
 import optparse
 import subprocess
+import multiprocessing
 
 parser = optparse.OptionParser()
 parser.add_option('-m', '--mitsuba', help='the mitsuba executable', default='../../../build/binaries/Release/mitsuba.exe')
@@ -33,6 +34,7 @@ framerate = 1 / float(frames - 1)
 for i in range(0, frames):
     command = [options.mitsuba, options.input]
     command += ["-o", options.output + os.path.sep + str(i)]
+    command += ["-p", str(multiprocessing.cpu_count() - 1)]
     command += ["-Dtime=" + str(time)]
     command += ["-Dmaterial=" + options.material]
     #command += ["-z"]
