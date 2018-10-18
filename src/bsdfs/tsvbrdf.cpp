@@ -358,7 +358,7 @@ public:
 
     Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
-    if (sigma < 0.0f)
+    if (sigma <= 0.0f)
       hasSpecular = false;
 
     Spectrum result(0.0f);
@@ -400,7 +400,7 @@ public:
     Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
     Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
 
-    if (sigma < 0.0f)
+    if (sigma <= 0.0f)
       hasSpecular = false;
 
     Float pd = std::max(r, std::max(g, b));
@@ -450,7 +450,7 @@ public:
     if (!hasSpecular && !hasDiffuse)
       return Spectrum(0.0f);
 
-    if (sigma < 0.0f)
+    if (sigma <= 0.0f)
       hasSpecular = false;
 
     bool choseSpecular = hasSpecular;
