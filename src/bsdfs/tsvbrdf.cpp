@@ -373,7 +373,7 @@ public:
       Vector H = normalize(bRec.wo + bRec.wi);
       Float ks = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
       Float spec = ks / (4.0f * Frame::cosTheta(bRec.wi)) *
-        exp(-sigma * acosf(Frame::cosTheta(H)) * acosf(Frame::cosTheta(H)));
+        math::fastexp(-sigma * acosf(Frame::cosTheta(H)) * acosf(Frame::cosTheta(H)));
       Spectrum specular;
       specular.fromLinearRGB(spec, spec, spec);
       result += specular;
@@ -410,8 +410,8 @@ public:
     ps *= scale;
 
     Float diffusePdf = warp::squareToCosineHemispherePdf(bRec.wo);
-    Float specularPdf = exp(-sigma * Frame::sinTheta2(H)) / (4.0f * absDot(bRec.wo, H));
-    specularPdf *= sigma / (M_PI * (1.0f - exp(-sigma)));
+    Float specularPdf = math::fastexp(-sigma * Frame::sinTheta2(H)) / (4.0f * absDot(bRec.wo, H));
+    specularPdf *= sigma / (M_PI * (1.0f - math::fastexp(-sigma)));
 
     if (hasDiffuse && hasSpecular)
       return ps * specularPdf + pd * diffusePdf;
@@ -470,7 +470,7 @@ public:
       /* Sample normal from Gaussian distribution */
       Float sinPhiM, cosPhiM, cosThetaM, sinThetaM;
       math::sincos((2.0f * M_PI) * sample.y, &sinPhiM, &cosPhiM);
-      sinThetaM = std::sqrt(-math::fastlog(1.0f + sample.x * (exp(-sigma) - 1.0f)) / sigma);
+      sinThetaM = std::sqrt(-math::fastlog(1.0f + sample.x * (math::fastexp(-sigma) - 1.0f)) / sigma);
       if (sample.x == 1.0f) sinThetaM = 1.0f;
       cosThetaM = std::sqrt(std::max((Float)0, 1 - sinThetaM*sinThetaM));
 
@@ -483,7 +483,7 @@ public:
       if (m.y != 0.0f) {
         /* Perfect specular reflection based on the microfacet normal */
         bRec.wo = reflect(bRec.wi, m);
-        bRec.sampledComponent = 0;
+        bRec.sampledComponent = 1;
         bRec.sampledType = EGlossyReflection;
       }
       else {
