@@ -258,12 +258,16 @@ public:
     }
 
     // Ks.
-    for (int f = 0; f < FRAMES; ++f)
-      m_Ks.frames[f] = cv::imread(filepath + "/Ks-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+		for (int f = 0; f < FRAMES; ++f) {
+			img = cv::imread(filepath + "/Ks-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+			cv::extractChannel(img, m_Ks.frames[f], 0);
+		}
 
     // Sigma.
-    for (int f = 0; f < FRAMES; ++f)
-      m_sigma.frames[f] = cv::imread(filepath + "/Sigma-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+		for (int f = 0; f < FRAMES; ++f) {
+			img = cv::imread(filepath + "/Sigma-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+			cv::extractChannel(img, m_sigma.frames[f], 0);
+		}
 
     // Resolution.
     m_width = img.size().width;
