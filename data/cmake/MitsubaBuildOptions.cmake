@@ -24,6 +24,7 @@ if (MTS_CMAKE_INIT)
     set(MTS_CXX_FLAGS)
   endif()
 endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 # Top level configuration definitions
 option(MTS_DEBUG "Enable assertions etc. Usually a good idea." ON)
