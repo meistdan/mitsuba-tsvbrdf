@@ -164,7 +164,7 @@ private:
 
 class PolyEvaluator : public  TSVBRDFEvaluator {
 public:
-  static const int DEGREE = 6;
+  static const int DEGREE = 5;
   struct Parameter {
     cv::Mat coefs[DEGREE + 1];
   };
@@ -318,8 +318,8 @@ private:
 };
 
 //typedef STAFEvaluator Evaluator;
-//typedef PolyEvaluator Evaluator;
-typedef FrameEvaluator Evaluator;
+typedef PolyEvaluator Evaluator;
+//typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
@@ -372,7 +372,7 @@ public:
 
     Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
-    if (sigma <= 0.0f)
+    if (sigma <= 0.0f || !std::isfinite(sigma))
       hasSpecular = false;
 
     Spectrum result(0.0f);
@@ -414,7 +414,7 @@ public:
     Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
     Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
 
-    if (sigma <= 0.0f)
+    if (sigma <= 0.0f || !std::isfinite(sigma))
       hasSpecular = false;
 
     Float pd = std::max(r, std::max(g, b));
@@ -464,7 +464,7 @@ public:
     if (!hasSpecular && !hasDiffuse)
       return Spectrum(0.0f);
 
-    if (sigma <= 0.0f)
+    if (sigma <= 0.0f || !std::isfinite(sigma))
       hasSpecular = false;
 
     bool choseSpecular = hasSpecular;
