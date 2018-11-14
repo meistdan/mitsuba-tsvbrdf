@@ -318,8 +318,8 @@ private:
 };
 
 //typedef STAFEvaluator Evaluator;
-typedef PolyEvaluator Evaluator;
-//typedef FrameEvaluator Evaluator;
+//typedef PolyEvaluator Evaluator;
+typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
@@ -361,7 +361,7 @@ public:
   }
 
   Spectrum eval(const BSDFSamplingRecord &bRec, EMeasure measure) const {
-    if (Frame::cosTheta(bRec.wi) <= 0 ||
+    if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
       Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
       return Spectrum(0.0f);
 
@@ -397,7 +397,7 @@ public:
   }
 
   Float pdf(const BSDFSamplingRecord &bRec, EMeasure measure) const {
-    if (Frame::cosTheta(bRec.wi) <= 0 ||
+    if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
       Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
       return 0.0f;
 
@@ -411,8 +411,8 @@ public:
     Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
     Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
     Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
-    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
+    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
     if (sigma <= 0.0f || !std::isfinite(sigma))
       hasSpecular = false;
@@ -422,10 +422,14 @@ public:
     Float scale = 1.0f / (pd + ps);
     pd *= scale;
     ps *= scale;
-
+    
     Float diffusePdf = warp::squareToCosineHemispherePdf(bRec.wo);
-    Float specularPdf = math::fastexp(-sigma * Frame::sinTheta2(H)) / (4.0f * absDot(bRec.wo, H));
+    Float specularPdf = math::fastexp(-sigma * Frame::sinTheta2(H)) * Frame::cosTheta(H);
     specularPdf *= sigma / (M_PI * (1.0f - math::fastexp(-sigma)));
+    specularPdf /= (4.0f * absDot(bRec.wo, H));
+
+    if (diffusePdf < 1.0e-3f) hasDiffuse = false;
+    if (specularPdf < 1.0e-3f) hasSpecular = false;
 
     if (hasDiffuse && hasSpecular)
       return ps * specularPdf + pd * diffusePdf;
@@ -452,8 +456,8 @@ public:
     Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
     Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
     Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.x, m_time);
-    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.x, m_time);
+    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
 
     Float pd = std::max(r, std::max(g, b));
     Float ps = s;
@@ -494,7 +498,7 @@ public:
         cosThetaM
       );
 
-      if (m.y != 0.0f) {
+      if (m.z != 0.0f) {
         /* Perfect specular reflection based on the microfacet normal */
         bRec.wo = reflect(bRec.wi, m);
         bRec.sampledComponent = 1;
@@ -515,8 +519,7 @@ public:
 
     _pdf = pdf(bRec, ESolidAngle);
 
-
-    if (_pdf == 0)
+    if (_pdf == 0.0f)
       return Spectrum(0.0f);
     else
       return eval(bRec, ESolidAngle) / _pdf;
