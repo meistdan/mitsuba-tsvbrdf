@@ -22,144 +22,21 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 
 #include <opencv2/opencv.hpp>
 
-#include <fstream>
+#include "microfacet.h"
+#include "ior.h"
 
 MTS_NAMESPACE_BEGIN
 
 class TSVBRDFEvaluator {
 public:
   virtual void load(const std::string &filepath) = 0;
-  virtual Float getKd(Float u, Float v, Float t, int c) const = 0;
-  virtual Float getKs(Float u, Float v, Float t) const = 0;
-  virtual Float getSigma(Float u, Float v, Float t) const = 0;
+  virtual Float getAlbedo(Float u, Float v, Float t, int c) const = 0;
+  virtual Float getNormal(Float u, Float v, Float t, int c) const = 0;
+  virtual Float getRoughness(Float u, Float v, Float t) const = 0;
+  virtual Float getMetallic(Float u, Float v, Float t) const = 0;
 protected:
   int m_width;
   int m_height;
-};
-
-class STAFEvaluator : public  TSVBRDFEvaluator {
-public:
-  static const int DEGREE = 6;
-  struct Polynom {
-    Float coefs[DEGREE + 1];
-    Float eval(Float t) const {
-      Float res = 0.0f;
-      for (int i = DEGREE; i >= 0; --i)
-        res = res * t + coefs[i];
-      return res;
-    }
-  };
-
-  struct Parameter {
-    Polynom phi;
-    cv::Mat factors[4];
-  };
-
-  void load(const std::string &filepath) {
-
-    // Images.
-    cv::Mat img;
-    const char factorChars[] = { 'A', 'B', 'C', 'D' };
-
-    // Kd.
-    for (int f = 0; f < 4; ++f) {
-      img = cv::imread(filepath + "/Kd-" + factorChars[f] + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_Kd[c].factors[f], c);
-    }
-
-    // Ks.
-    for (int f = 0; f < 4; ++f) {
-      img = cv::imread(filepath + "/Ks-" + factorChars[f] + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_Ks.factors[f], 0);
-    }
-
-    // Sigma.
-    for (int f = 0; f < 4; ++f) {
-      img = cv::imread(filepath + "/Sigma-" + factorChars[f] + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_sigma.factors[f], 0);
-    }
-
-    // Resolution.
-    m_width = img.size().width;
-    m_height = img.size().height;
-
-    // Phi.
-    Float coef;
-    std::string line, value;
-    std::ifstream file(filepath + "/phi.txt");
-
-    // Kd.
-    for (int c = 0; c < 3; ++c) {
-      getline(file, line);
-      std::istringstream ss(line);
-      for (int i = 0; i <= DEGREE; ++i) {
-        ss >> coef;
-        m_Kd[c].phi.coefs[i] = coef;
-      }
-    }
-
-    // Ks.
-    {
-      getline(file, line);
-      std::istringstream ss(line);
-      for (int i = 0; i <= DEGREE; ++i) {
-        ss >> coef;
-        m_Ks.phi.coefs[i] = coef;
-      }
-    }
-
-    // Sigma.
-    {
-      getline(file, line);
-      std::istringstream ss(line);
-      for (int i = 0; i <= DEGREE; ++i) {
-        ss >> coef;
-        m_sigma.phi.coefs[i] = coef;
-      }
-    }
-
-    file.close();
-
-  }
-
-  Float eval(const Parameter &p, int x, int y, Float t) const {
-    if (x < 0 || x >= m_width) x = math::modulo(x, m_width);
-    if (y < 0 || y >= m_height) y = math::modulo(y, m_height);
-    return Float(p.factors[0].at<float>(y, x) * p.phi.eval((t - p.factors[2].at<float>(y, x))
-      / p.factors[1].at<float>(y, x)) + p.factors[3].at<float>(y, x));
-  }
-
-  Float eval(const Parameter &p, Float u, Float v, Float t) const {
-    if (EXPECT_NOT_TAKEN(!std::isfinite(u) || !std::isfinite(v)))
-      return 0.0f;
-    u = u * m_width - 0.5f;
-    v = v * m_height - 0.5f;
-    int xPos = math::floorToInt(u), yPos = math::floorToInt(v);
-    Float dx1 = u - xPos, dx2 = 1.0f - dx1,
-      dy1 = v - yPos, dy2 = 1.0f - dy1;
-    return eval(p, xPos, yPos, t) * dx2 * dy2
-      + eval(p, xPos, yPos + 1, t) * dx2 * dy1
-      + eval(p, xPos + 1, yPos, t) * dx1 * dy2
-      + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
-  }
-
-  Float getKd(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_Kd[2 - c], u, v, t));
-  }
-
-  Float getKs(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_Ks, u, v, t));
-  }
-
-  Float getSigma(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_sigma, u, v, t));
-  }
-
-private:
-  Parameter m_Kd[3];
-  Parameter m_Ks;
-  Parameter m_sigma;
 };
 
 class PolyEvaluator : public  TSVBRDFEvaluator {
@@ -174,23 +51,30 @@ public:
     // Images.
     cv::Mat img;
 
-    // Kd.
+    // Base color.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Kd-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Albedo-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_Kd[c].coefs[d], c);
+        cv::extractChannel(img, m_albedo[c].coefs[d], c);
     }
 
-    // Ks.
+    // Normal.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Ks-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_Ks.coefs[d], 0);
+      img = cv::imread(filepath + "/Normal-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      for (int c = 0; c < 3; ++c)
+        cv::extractChannel(img, m_normal[c].coefs[d], c);
     }
 
-    // Sigma.
+    // Roughness.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Sigma-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_sigma.coefs[d], 0);
+      img = cv::imread(filepath + "/Rougness-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      cv::extractChannel(img, m_roughness.coefs[d], 0);
+    }
+
+    // Metallic.
+    for (int d = 0; d <= DEGREE; ++d) {
+      img = cv::imread(filepath + "/Metallic-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      cv::extractChannel(img, m_metallic.coefs[d], 0);
     }
 
     // Resolution.
@@ -222,22 +106,27 @@ public:
       + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
   }
 
-  Float getKd(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_Kd[2 - c], u, v, t));
+  Float getAlbedo(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_albedo[ c], u, v, t));
   }
 
-  Float getKs(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_Ks, u, v, t));
+  Float getNormal(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_normal[c], u, v, t));
   }
 
-  Float getSigma(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_sigma, u, v, t));
+  Float getRoughness(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_roughness, u, v, t));
+  }
+
+  Float getMetallic(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_metallic, u, v, t));
   }
 
 private:
-  Parameter m_Kd[3];
-  Parameter m_Ks;
-  Parameter m_sigma;
+  Parameter m_albedo[3];
+  Parameter m_normal[3];
+  Parameter m_roughness;
+  Parameter m_metallic;
 };
 
 class FrameEvaluator : public  TSVBRDFEvaluator {
@@ -252,24 +141,31 @@ public:
     // Images.
     cv::Mat img;
 
-    // Kd.
+    // Base color.
     for (int f = 0; f < FRAMES; ++f) {
-      img = cv::imread(filepath + "/Kd-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Albedo-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_Kd[c].frames[f], c);
+        cv::extractChannel(img, m_albedo[c].frames[f], c);
     }
 
-    // Ks.
+    // Normal.
+    for (int f = 0; f < FRAMES; ++f) {
+      img = cv::imread(filepath + "/Normal-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      for (int c = 0; c < 3; ++c)
+        cv::extractChannel(img, m_normal[c].frames[f], c);
+    }
+
+    // Roughness.
 		for (int f = 0; f < FRAMES; ++f) {
-			img = cv::imread(filepath + "/Ks-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-			cv::extractChannel(img, m_Ks.frames[f], 0);
+			img = cv::imread(filepath + "/Roughness-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+			cv::extractChannel(img, m_roughness.frames[f], 0);
 		}
 
-    // Sigma.
-		for (int f = 0; f < FRAMES; ++f) {
-			img = cv::imread(filepath + "/Sigma-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-			cv::extractChannel(img, m_sigma.frames[f], 0);
-		}
+    // Metallic.
+    for (int f = 0; f < FRAMES; ++f) {
+      img = cv::imread(filepath + "/Metallic-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      cv::extractChannel(img, m_metallic.frames[f], 0);
+    }
 
     // Resolution.
     m_width = img.size().width;
@@ -299,25 +195,29 @@ public:
       + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
   }
 
-  Float getKd(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_Kd[2 - c], u, v, t));
+  Float getAlbedo(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_albedo[c], u, v, t));
   }
 
-  Float getKs(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_Ks, u, v, t));
+  Float getNormal(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_normal[c], u, v, t));
   }
 
-  Float getSigma(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_sigma, u, v, t));
+  Float getRoughness(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_roughness, u, v, t));
+  }
+
+  Float getMetallic(Float u, Float v, Float t) const {
+    return std::max(0.0f, eval(m_metallic, u, v, t));
   }
 
 private:
-  Parameter m_Kd[3];
-  Parameter m_Ks;
-  Parameter m_sigma;
+  Parameter m_albedo[3];
+  Parameter m_normal[3];
+  Parameter m_roughness;
+  Parameter m_metallic;
 };
 
-//typedef STAFEvaluator Evaluator;
 //typedef PolyEvaluator Evaluator;
 typedef FrameEvaluator Evaluator;
 
@@ -347,17 +247,43 @@ public:
     BSDF::configure();
   }
 
-  Spectrum getDiffuseReflectance(const Intersection &its) const {
+  Spectrum getAlbedo(const Intersection &its) const {
     Spectrum s;
-    Float r = m_evaluator.getKd(its.uv.x, its.uv.y, m_time, 0);
-    Float g = m_evaluator.getKd(its.uv.x, its.uv.y, m_time, 1);
-    Float b = m_evaluator.getKd(its.uv.x, its.uv.y, m_time, 2);
+    Float r = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 0);
+    Float g = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 1);
+    Float b = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 2);
     s.fromLinearRGB(r, g, b);
     return s;
   }
 
-  inline Vector reflect(const Vector &wi, const Normal &m) const {
-    return 2.0f * dot(wi, m) * Vector(m) - wi;
+  Normal getNormal(const Intersection &its) const {
+    Float x = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 0);
+    Float y = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 1);
+    Float z = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 2);
+    return normalize(Normal(x, y, z));
+  }
+
+  inline Vector safeNormalize(const Vector &inVec) const {
+    float dp3 = std::max(0.001f, dot(inVec, inVec));
+    return inVec * pow(dp3, -0.5f);
+  }
+
+  inline Float smoothnessToPerceptualRoughness(Float smoothness) const {
+    return (1.0f - smoothness);
+  }
+
+  inline Float saturate(Float x) const {
+    return std::max(0.0f, std::min(1.0f, x));
+  }
+
+  inline Spectrum fresnelTerm(Spectrum F0, Float cosA) const {
+    Float t = pow(1.0f - cosA, 5.0f);   // ala Schlick interpoliation
+    return F0 + (Spectrum(1.0f)- F0) * t;
+  }
+
+  inline Spectrum fresnelLerp(Spectrum F0, Spectrum F90, Float cosA) const {
+    Float t = pow(1 - cosA, 5.0f);   // ala Schlick interpoliation
+    return (1.0f - t) * F0 + t * F90;
   }
 
   Spectrum eval(const BSDFSamplingRecord &bRec, EMeasure measure) const {
@@ -370,75 +296,44 @@ public:
     bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
       && (bRec.component == -1 || bRec.component == 1);
 
-    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    const Spectrum colorSpaceDielectricSpecRgb(0.04f);
+    const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
 
-    if (sigma <= 0.0f || !std::isfinite(sigma))
-      hasSpecular = false;
+    Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    Spectrum albedo = getAlbedo(bRec.its);
+    Normal normal = getNormal(bRec.its);
+
+    Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
+    Spectrum diffColor = albedo * oneMinusReflectivity;
+    Spectrum specColor = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * albedo;
 
     Spectrum result(0.0f);
-
     if (hasDiffuse) {
-      Spectrum kd = getDiffuseReflectance(bRec.its);
-      Spectrum diffuse = kd * INV_PI * Frame::cosTheta(bRec.wo);
-      result += diffuse;
+      result += diffColor * INV_PI * Frame::cosTheta(bRec.wo);
+      //result += diffColor * INV_PI * dot(normal, bRec.wo);
     }
 
     if (hasSpecular) {
       Vector H = normalize(bRec.wo + bRec.wi);
-      Float ks = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
-      Float spec = ks / (4.0f * Frame::cosTheta(bRec.wi)) *
-        math::fastexp(-sigma * acosf(Frame::cosTheta(H)) * acosf(Frame::cosTheta(H)));
-      Spectrum specular;
-      specular.fromLinearRGB(spec, spec, spec);
-      result += specular;
+      MicrofacetDistribution distr(MicrofacetDistribution::EGGX, roughness);
+      const Float D = distr.eval(H);
+      const Float G = distr.G(bRec.wi, bRec.wo, H);
+      const Spectrum F = fresnelConductorExact(dot(bRec.wi, H), 0.0f, 1.0f) * specColor;
+      result += F * G * D / (4.0f * Frame::cosTheta(bRec.wi));
+      //result += F * G * D / (4.0f * dot(normal, bRec.wi));
     }
-
+    
     return result;
+
   }
 
   Float pdf(const BSDFSamplingRecord &bRec, EMeasure measure) const {
-    if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
-      Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
+    if (!(bRec.typeMask & EDiffuseReflection) || measure != ESolidAngle
+      || Frame::cosTheta(bRec.wi) <= 0
+      || Frame::cosTheta(bRec.wo) <= 0)
       return 0.0f;
-
-    bool hasSpecular = (bRec.typeMask & EGlossyReflection)
-      && (bRec.component == -1 || bRec.component == 0);
-    bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
-      && (bRec.component == -1 || bRec.component == 1);
-
-    Vector H = normalize(bRec.wo + bRec.wi);
-
-    Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
-    Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
-    Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
-    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
-
-    if (sigma <= 0.0f || !std::isfinite(sigma))
-      hasSpecular = false;
-
-    Float pd = std::max(r, std::max(g, b));
-    Float ps = s;
-    Float scale = 1.0f / (pd + ps);
-    pd *= scale;
-    ps *= scale;
-    
-    Float diffusePdf = warp::squareToCosineHemispherePdf(bRec.wo);
-    Float specularPdf = math::fastexp(-sigma * Frame::sinTheta2(H)) * Frame::cosTheta(H);
-    specularPdf *= sigma / (M_PI * (1.0f - math::fastexp(-sigma)));
-    specularPdf /= (4.0f * absDot(bRec.wo, H));
-
-    if (diffusePdf < 1.0e-3f) hasDiffuse = false;
-    if (specularPdf < 1.0e-3f) hasSpecular = false;
-
-    if (hasDiffuse && hasSpecular)
-      return ps * specularPdf + pd * diffusePdf;
-    else if (hasDiffuse)
-      return diffusePdf;
-    else if (hasSpecular)
-      return specularPdf;
-    else
-      return 0.0f;
+    return warp::squareToCosineHemispherePdf(bRec.wo);
   }
 
   Spectrum sample(BSDFSamplingRecord &bRec, const Point2 &sample) const {
@@ -446,83 +341,15 @@ public:
     return TSVBRDF::sample(bRec, pdf, sample);
   }
 
-  Spectrum sample(BSDFSamplingRecord &bRec, Float &_pdf, const Point2 &_sample) const {
-    Point2 sample(_sample);
-    bool hasSpecular = (bRec.typeMask & EGlossyReflection)
-      && (bRec.component == -1 || bRec.component == 0);
-    bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
-      && (bRec.component == -1 || bRec.component == 1);
-
-    Float r = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
-    Float g = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
-    Float b = m_evaluator.getKd(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-    Float s = m_evaluator.getKs(bRec.its.uv.x, bRec.its.uv.y, m_time);
-    Float sigma = m_evaluator.getSigma(bRec.its.uv.x, bRec.its.uv.y, m_time);
-
-    Float pd = std::max(r, std::max(g, b));
-    Float ps = s;
-    Float scale = 1.0f / (pd + ps);
-    pd *= scale;
-    ps *= scale;
-
-    if (!hasSpecular && !hasDiffuse)
+  Spectrum sample(BSDFSamplingRecord &bRec, Float &pdf, const Point2 &sample) const {
+    if (!(bRec.typeMask & EDiffuseReflection) || Frame::cosTheta(bRec.wi) <= 0)
       return Spectrum(0.0f);
-
-    if (sigma <= 0.0f || !std::isfinite(sigma))
-      hasSpecular = false;
-
-    bool choseSpecular = hasSpecular;
-
-    if (hasDiffuse && hasSpecular) {
-      if (sample.x <= ps) {
-        sample.x /= ps;
-      }
-      else {
-        sample.x = (sample.x - ps) / pd;
-        choseSpecular = false;
-      }
-    }
-
-    if (choseSpecular) {
-
-      /* Sample normal from Gaussian distribution */
-      Float sinPhiM, cosPhiM, cosThetaM, sinThetaM;
-      math::sincos((2.0f * M_PI) * sample.y, &sinPhiM, &cosPhiM);
-      sinThetaM = std::sqrt(-math::fastlog(1.0f + sample.x * (math::fastexp(-sigma) - 1.0f)) / sigma);
-      if (sample.x == 1.0f) sinThetaM = 1.0f;
-      cosThetaM = std::sqrt(std::max((Float)0, 1 - sinThetaM*sinThetaM));
-
-      Normal m = Vector(
-        sinThetaM * cosPhiM,
-        sinThetaM * sinPhiM,
-        cosThetaM
-      );
-
-      if (m.z != 0.0f) {
-        /* Perfect specular reflection based on the microfacet normal */
-        bRec.wo = reflect(bRec.wi, m);
-        bRec.sampledComponent = 1;
-        bRec.sampledType = EGlossyReflection;
-      }
-      else {
-        bRec.wo = warp::squareToCosineHemisphere(sample);
-        bRec.sampledComponent = 0;
-        bRec.sampledType = EDiffuseReflection;
-      }
-    }
-    else {
-      bRec.wo = warp::squareToCosineHemisphere(sample);
-      bRec.sampledComponent = 0;
-      bRec.sampledType = EDiffuseReflection;
-    }
+    bRec.wo = warp::squareToCosineHemisphere(sample);
+    bRec.sampledComponent = 0;
+    bRec.sampledType = EDiffuseReflection;
     bRec.eta = 1.0f;
-
-    _pdf = pdf(bRec, ESolidAngle);
-
-    if (_pdf == 0.0f)
-      return Spectrum(0.0f);
-    else
-      return eval(bRec, ESolidAngle) / _pdf;
+    pdf = warp::squareToCosineHemispherePdf(bRec.wo);
+    return eval(bRec, ESolidAngle) / pdf;
   }
 
   void serialize(Stream *stream, InstanceManager *manager) const {
@@ -533,7 +360,7 @@ public:
 
   Float getRoughness(const Intersection &its, int component) const {
     //return std::numeric_limits<Float>::infinity();
-    return 1.0f / sqrt(m_evaluator.getSigma(its.uv.x, its.uv.y, m_time));
+    return 1.0f / sqrt(m_evaluator.getRoughness(its.uv.x, its.uv.y, m_time));
   }
 
   std::string toString() const {
