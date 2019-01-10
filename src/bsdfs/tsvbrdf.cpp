@@ -107,11 +107,11 @@ public:
   }
 
   Float getAlbedo(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_albedo[ c], u, v, t));
+    return std::max(0.0f, eval(m_albedo[2 - c], u, v, t));
   }
 
   Float getNormal(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_normal[c], u, v, t));
+    return std::max(0.0f, eval(m_normal[2 - c], u, v, t));
   }
 
   Float getRoughness(Float u, Float v, Float t) const {
@@ -196,11 +196,11 @@ public:
   }
 
   Float getAlbedo(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_albedo[c], u, v, t));
+    return std::max(0.0f, eval(m_albedo[2 - c], u, v, t));
   }
 
   Float getNormal(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_normal[c], u, v, t));
+    return std::max(0.0f, eval(m_normal[2 - c], u, v, t));
   }
 
   Float getRoughness(Float u, Float v, Float t) const {
@@ -230,6 +230,7 @@ public:
     if (m_filepath.empty())
       Log(EError, "Filepath to TSVBRDF was not specified!");
     m_evaluator.load(m_filepath);
+		m_sampleVisible = true;
   }
 
   TSVBRDF(Stream *stream, InstanceManager *manager)
@@ -263,29 +264,6 @@ public:
     return normalize(Normal(x, y, z));
   }
 
-  inline Vector safeNormalize(const Vector &inVec) const {
-    float dp3 = std::max(0.001f, dot(inVec, inVec));
-    return inVec * pow(dp3, -0.5f);
-  }
-
-  inline Float smoothnessToPerceptualRoughness(Float smoothness) const {
-    return (1.0f - smoothness);
-  }
-
-  inline Float saturate(Float x) const {
-    return std::max(0.0f, std::min(1.0f, x));
-  }
-
-  inline Spectrum fresnelTerm(Spectrum F0, Float cosA) const {
-    Float t = pow(1.0f - cosA, 5.0f);   // ala Schlick interpoliation
-    return F0 + (Spectrum(1.0f)- F0) * t;
-  }
-
-  inline Spectrum fresnelLerp(Spectrum F0, Spectrum F90, Float cosA) const {
-    Float t = pow(1 - cosA, 5.0f);   // ala Schlick interpoliation
-    return (1.0f - t) * F0 + t * F90;
-  }
-
   Spectrum eval(const BSDFSamplingRecord &bRec, EMeasure measure) const {
     if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
       Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
@@ -302,7 +280,6 @@ public:
     Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
     Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
     Spectrum albedo = getAlbedo(bRec.its);
-    Normal normal = getNormal(bRec.its);
 
     Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
     Spectrum diffColor = albedo * oneMinusReflectivity;
@@ -311,29 +288,88 @@ public:
     Spectrum result(0.0f);
     if (hasDiffuse) {
       result += diffColor * INV_PI * Frame::cosTheta(bRec.wo);
-      //result += diffColor * INV_PI * dot(normal, bRec.wo);
     }
 
     if (hasSpecular) {
       Vector H = normalize(bRec.wo + bRec.wi);
-      MicrofacetDistribution distr(MicrofacetDistribution::EGGX, roughness);
-      const Float D = distr.eval(H);
-      const Float G = distr.G(bRec.wi, bRec.wo, H);
-      const Spectrum F = fresnelConductorExact(dot(bRec.wi, H), 0.0f, 1.0f) * specColor;
-      result += F * G * D / (4.0f * Frame::cosTheta(bRec.wi));
-      //result += F * G * D / (4.0f * dot(normal, bRec.wi));
+      MicrofacetDistribution distr(MicrofacetDistribution::EGGX, roughness, m_sampleVisible);
+			const Float F = fresnelConductorExact(dot(bRec.wi, H), 0.0f, 1.0f);
+			const Float G = distr.G(bRec.wi, bRec.wo, H);
+			const Float D = distr.eval(H);
+      result += F * G * D / (4.0f * Frame::cosTheta(bRec.wi)) * specColor;
     }
     
     return result;
 
   }
 
+#define COSINE_PDF 0
   Float pdf(const BSDFSamplingRecord &bRec, EMeasure measure) const {
+#if COSINE_PDF
     if (!(bRec.typeMask & EDiffuseReflection) || measure != ESolidAngle
       || Frame::cosTheta(bRec.wi) <= 0
       || Frame::cosTheta(bRec.wo) <= 0)
       return 0.0f;
     return warp::squareToCosineHemispherePdf(bRec.wo);
+#else
+		if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
+			Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
+			return 0.0f;
+
+		bool hasSpecular = (bRec.typeMask & EGlossyReflection)
+			&& (bRec.component == -1 || bRec.component == 0);
+		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
+			&& (bRec.component == -1 || bRec.component == 1);
+
+		const Float colorSpaceDielectricSpecRgb = 0.04f;
+		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
+
+		Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
+		Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
+		Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
+
+		Float r = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+		Float g = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+		Float b = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+
+		Float dr = oneMinusReflectivity * r;
+		Float dg = oneMinusReflectivity * g;
+		Float db = oneMinusReflectivity * b;
+
+		Float sr = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * r;
+		Float sg = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * g;
+		Float sb = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * b;
+
+		Float pd = std::max(dr, std::max(dg, db));
+		Float ps = std::max(sr, std::max(sg, sb));
+		Float scale = 1.0f / (pd + ps);
+		pd *= scale;
+		ps *= scale;
+
+		Float diffusePdf = warp::squareToCosineHemispherePdf(bRec.wo);
+
+		MicrofacetDistribution distr(MicrofacetDistribution::EGGX, roughness, m_sampleVisible);
+		Vector H = normalize(bRec.wo + bRec.wi);
+		Float specularPdf = 0.0f;
+		if (m_sampleVisible)
+			specularPdf =  distr.eval(H) * distr.smithG1(bRec.wi, H)
+			/ (4.0f * Frame::cosTheta(bRec.wi));
+		else
+			specularPdf = distr.pdf(bRec.wi, H) / (4 * absDot(bRec.wo, H));
+
+		if (diffusePdf < 1.0e-3f) hasDiffuse = false;
+		if (specularPdf < 1.0e-3f) hasSpecular = false;
+
+		if (hasDiffuse && hasSpecular)
+			return ps * specularPdf + pd * diffusePdf;
+		else if (hasDiffuse)
+			return diffusePdf;
+		else if (hasSpecular)
+			return specularPdf;
+		else
+			return 0.0f;
+
+#endif
   }
 
   Spectrum sample(BSDFSamplingRecord &bRec, const Point2 &sample) const {
@@ -341,15 +377,103 @@ public:
     return TSVBRDF::sample(bRec, pdf, sample);
   }
 
-  Spectrum sample(BSDFSamplingRecord &bRec, Float &pdf, const Point2 &sample) const {
+  Spectrum sample(BSDFSamplingRecord &bRec, Float &_pdf, const Point2 &_sample) const {
+#if COSINE_PDF
     if (!(bRec.typeMask & EDiffuseReflection) || Frame::cosTheta(bRec.wi) <= 0)
       return Spectrum(0.0f);
-    bRec.wo = warp::squareToCosineHemisphere(sample);
+    bRec.wo = warp::squareToCosineHemisphere(_sample);
     bRec.sampledComponent = 0;
     bRec.sampledType = EDiffuseReflection;
     bRec.eta = 1.0f;
-    pdf = warp::squareToCosineHemispherePdf(bRec.wo);
-    return eval(bRec, ESolidAngle) / pdf;
+    _pdf = warp::squareToCosineHemispherePdf(bRec.wo);
+    return eval(bRec, ESolidAngle) / _pdf;
+#else
+		Point2 sample(_sample);
+		bool hasSpecular = (bRec.typeMask & EGlossyReflection)
+			&& (bRec.component == -1 || bRec.component == 0);
+		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
+			&& (bRec.component == -1 || bRec.component == 1);
+
+		const Float colorSpaceDielectricSpecRgb = 0.04f;
+		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
+
+		Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
+		Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
+		Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
+
+		Float r = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+		Float g = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+		Float b = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+
+		Float dr = oneMinusReflectivity * r;
+		Float dg = oneMinusReflectivity * g;
+		Float db = oneMinusReflectivity * b;
+
+		Float sr = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * r;
+		Float sg = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * g;
+		Float sb = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * b;
+
+		Float pd = std::max(dr, std::max(dg, db));
+		Float ps = std::max(sr, std::max(sg, sb));
+		Float scale = 1.0f / (pd + ps);
+		pd *= scale;
+		ps *= scale;
+
+		if (!hasSpecular && !hasDiffuse)
+			return Spectrum(0.0f);
+
+		bool choseSpecular = hasSpecular;
+
+		if (hasDiffuse && hasSpecular) {
+			if (sample.x <= ps) {
+				sample.x /= ps;
+			}
+			else {
+				sample.x = (sample.x - ps) / pd;
+				choseSpecular = false;
+			}
+		}
+
+		if (choseSpecular) {
+
+			/* Construct the microfacet distribution matching the
+			roughness values at the current surface position. */
+			MicrofacetDistribution distr(MicrofacetDistribution::EGGX, roughness, m_sampleVisible);
+
+			/* Sample M, the microfacet normal */
+			Normal m = distr.sample(bRec.wi, sample, _pdf);
+
+			if (_pdf == 0)
+				return Spectrum(0.0f);
+
+			/* Side check */
+			if (Frame::cosTheta(bRec.wo) > 0) {
+				/* Perfect specular reflection based on the microfacet normal */
+				bRec.wo = reflect(bRec.wi, m);
+				bRec.sampledComponent = 1;
+				bRec.sampledType = EGlossyReflection;
+			}
+			else {
+				bRec.wo = warp::squareToCosineHemisphere(sample);
+				bRec.sampledComponent = 0;
+				bRec.sampledType = EDiffuseReflection;
+			}
+		}
+		else {
+			bRec.wo = warp::squareToCosineHemisphere(sample);
+			bRec.sampledComponent = 0;
+			bRec.sampledType = EDiffuseReflection;
+		}
+		bRec.eta = 1.0f;
+
+		_pdf = pdf(bRec, ESolidAngle);
+
+		if (_pdf == 0.0f)
+			return Spectrum(0.0f);
+		else
+			return eval(bRec, ESolidAngle) / _pdf;
+
+#endif
   }
 
   void serialize(Stream *stream, InstanceManager *manager) const {
@@ -379,6 +503,7 @@ private:
   std::string m_filepath;
   Float m_time;
   Evaluator m_evaluator;
+	bool m_sampleVisible;
 };
 
 // ================ Hardware shader implementation ================
