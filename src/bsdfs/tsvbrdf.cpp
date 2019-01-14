@@ -29,6 +29,7 @@ MTS_NAMESPACE_BEGIN
 
 class TSVBRDFEvaluator {
 public:
+	static const int TEX_REPEAT = 1;
   virtual void load(const std::string &filepath) = 0;
   virtual Float getAlbedo(Float u, Float v, Float t, int c) const = 0;
   virtual Float getNormal(Float u, Float v, Float t, int c) const = 0;
@@ -95,6 +96,8 @@ public:
   Float eval(const Parameter &p, Float u, Float v, Float t) const {
     if (EXPECT_NOT_TAKEN(!std::isfinite(u) || !std::isfinite(v)))
       return 0.0f;
+		u *= TEX_REPEAT;
+		v *= TEX_REPEAT;
     u = u * m_width - 0.5f;
     v = v * m_height - 0.5f;
     int xPos = math::floorToInt(u), yPos = math::floorToInt(v);
@@ -184,6 +187,8 @@ public:
   Float eval(const Parameter &p, Float u, Float v, Float t) const {
     if (EXPECT_NOT_TAKEN(!std::isfinite(u) || !std::isfinite(v)))
       return 0.0f;
+		u *= TEX_REPEAT;
+		v *= TEX_REPEAT;
     u = u * m_width - 0.5f;
     v = v * m_height - 0.5f;
     int xPos = math::floorToInt(u), yPos = math::floorToInt(v);
@@ -443,11 +448,8 @@ public:
 			/* Sample M, the microfacet normal */
 			Normal m = distr.sample(bRec.wi, sample, _pdf);
 
-			if (_pdf == 0)
-				return Spectrum(0.0f);
-
 			/* Side check */
-			if (Frame::cosTheta(bRec.wo) > 0) {
+			if (Frame::cosTheta(bRec.wo) > 0 && _pdf > 0.0f) {
 				/* Perfect specular reflection based on the microfacet normal */
 				bRec.wo = reflect(bRec.wi, m);
 				bRec.sampledComponent = 1;
@@ -472,7 +474,6 @@ public:
 			return Spectrum(0.0f);
 		else
 			return eval(bRec, ESolidAngle) / _pdf;
-
 #endif
   }
 
