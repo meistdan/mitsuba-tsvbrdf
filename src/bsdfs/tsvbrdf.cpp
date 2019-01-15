@@ -29,12 +29,11 @@ MTS_NAMESPACE_BEGIN
 
 class TSVBRDFEvaluator {
 public:
-	static const int TEX_REPEAT = 1;
+	static const int TEX_REPEAT = 4;
   virtual void load(const std::string &filepath) = 0;
-  virtual Float getAlbedo(Float u, Float v, Float t, int c) const = 0;
-  virtual Float getNormal(Float u, Float v, Float t, int c) const = 0;
+  virtual Float getDiffuse(Float u, Float v, Float t, int c) const = 0;
+  virtual Float getSpecular(Float u, Float v, Float t, int c) const = 0;
   virtual Float getRoughness(Float u, Float v, Float t) const = 0;
-  virtual Float getMetallic(Float u, Float v, Float t) const = 0;
 protected:
   int m_width;
   int m_height;
@@ -52,30 +51,24 @@ public:
     // Images.
     cv::Mat img;
 
-    // Base color.
+    // Diffuse.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Albedo-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Diffuse-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_albedo[c].coefs[d], c);
+        cv::extractChannel(img, m_diffuse[c].coefs[d], c);
     }
 
-    // Normal.
+    // Specular.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Normal-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Specular-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_normal[c].coefs[d], c);
+        cv::extractChannel(img, m_specular[c].coefs[d], c);
     }
 
     // Roughness.
     for (int d = 0; d <= DEGREE; ++d) {
       img = cv::imread(filepath + "/Rougness-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       cv::extractChannel(img, m_roughness.coefs[d], 0);
-    }
-
-    // Metallic.
-    for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Metallic-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_metallic.coefs[d], 0);
     }
 
     // Resolution.
@@ -109,27 +102,22 @@ public:
       + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
   }
 
-  Float getAlbedo(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_albedo[2 - c], u, v, t));
+  Float getDiffuse(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_diffuse[2 - c], u, v, t));
   }
 
-  Float getNormal(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_normal[2 - c], u, v, t));
+  Float getSpecular(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_specular[2 - c], u, v, t));
   }
 
   Float getRoughness(Float u, Float v, Float t) const {
     return std::max(0.0f, eval(m_roughness, u, v, t));
   }
 
-  Float getMetallic(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_metallic, u, v, t));
-  }
-
 private:
-  Parameter m_albedo[3];
-  Parameter m_normal[3];
+  Parameter m_diffuse[3];
+  Parameter m_specular[3];
   Parameter m_roughness;
-  Parameter m_metallic;
 };
 
 class FrameEvaluator : public  TSVBRDFEvaluator {
@@ -144,18 +132,18 @@ public:
     // Images.
     cv::Mat img;
 
-    // Base color.
+    // Diffuse.
     for (int f = 0; f < FRAMES; ++f) {
-      img = cv::imread(filepath + "/Albedo-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Diffuse-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_albedo[c].frames[f], c);
+        cv::extractChannel(img, m_diffuse[c].frames[f], c);
     }
 
-    // Normal.
+    // Specular.
     for (int f = 0; f < FRAMES; ++f) {
-      img = cv::imread(filepath + "/Normal-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Specular-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       for (int c = 0; c < 3; ++c)
-        cv::extractChannel(img, m_normal[c].frames[f], c);
+        cv::extractChannel(img, m_specular[c].frames[f], c);
     }
 
     // Roughness.
@@ -163,12 +151,6 @@ public:
 			img = cv::imread(filepath + "/Roughness-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
 			cv::extractChannel(img, m_roughness.frames[f], 0);
 		}
-
-    // Metallic.
-    for (int f = 0; f < FRAMES; ++f) {
-      img = cv::imread(filepath + "/Metallic-" + std::to_string(f) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
-      cv::extractChannel(img, m_metallic.frames[f], 0);
-    }
 
     // Resolution.
     m_width = img.size().width;
@@ -200,27 +182,22 @@ public:
       + eval(p, xPos + 1, yPos + 1, t) * dx1 * dy1;
   }
 
-  Float getAlbedo(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_albedo[2 - c], u, v, t));
+  Float getDiffuse(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_diffuse[2 - c], u, v, t));
   }
 
-  Float getNormal(Float u, Float v, Float t, int c) const {
-    return std::max(0.0f, eval(m_normal[2 - c], u, v, t));
+  Float getSpecular(Float u, Float v, Float t, int c) const {
+    return std::max(0.0f, eval(m_specular[2 - c], u, v, t));
   }
 
   Float getRoughness(Float u, Float v, Float t) const {
     return std::max(0.0f, eval(m_roughness, u, v, t));
   }
 
-  Float getMetallic(Float u, Float v, Float t) const {
-    return std::max(0.0f, eval(m_metallic, u, v, t));
-  }
-
 private:
-  Parameter m_albedo[3];
-  Parameter m_normal[3];
+  Parameter m_diffuse[3];
+  Parameter m_specular[3];
   Parameter m_roughness;
-  Parameter m_metallic;
 };
 
 //typedef PolyEvaluator Evaluator;
@@ -253,21 +230,24 @@ public:
     BSDF::configure();
   }
 
-  Spectrum getAlbedo(const Intersection &its) const {
+  Spectrum getDiffuse(const Intersection &its) const {
     Spectrum s;
-    Float r = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 0);
-    Float g = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 1);
-    Float b = m_evaluator.getAlbedo(its.uv.x, its.uv.y, m_time, 2);
+    Float r = m_evaluator.getDiffuse(its.uv.x, its.uv.y, m_time, 0);
+    Float g = m_evaluator.getDiffuse(its.uv.x, its.uv.y, m_time, 1);
+    Float b = m_evaluator.getDiffuse(its.uv.x, its.uv.y, m_time, 2);
     s.fromLinearRGB(r, g, b);
     return s;
   }
 
-  Normal getNormal(const Intersection &its) const {
-    Float x = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 0);
-    Float y = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 1);
-    Float z = m_evaluator.getNormal(its.uv.x, its.uv.y, m_time, 2);
-    return normalize(Normal(x, y, z));
+  Spectrum getSpecular(const Intersection &its) const {
+    Spectrum s;
+    Float r = m_evaluator.getSpecular(its.uv.x, its.uv.y, m_time, 0);
+    Float g = m_evaluator.getSpecular(its.uv.x, its.uv.y, m_time, 1);
+    Float b = m_evaluator.getSpecular(its.uv.x, its.uv.y, m_time, 2);
+    s.fromLinearRGB(r, g, b);
+    return s;
   }
+
 
   Spectrum eval(const BSDFSamplingRecord &bRec, EMeasure measure) const {
     if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
@@ -283,16 +263,12 @@ public:
     const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
 
     Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
-    Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
-    Spectrum albedo = getAlbedo(bRec.its);
-
-    Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
-    Spectrum diffColor = albedo * oneMinusReflectivity;
-    Spectrum specColor = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * albedo;
+    Spectrum diffuse = getDiffuse(bRec.its);
+    Spectrum specular = getSpecular(bRec.its);
 
     Spectrum result(0.0f);
     if (hasDiffuse) {
-      result += diffColor * INV_PI * Frame::cosTheta(bRec.wo);
+      result += diffuse * INV_PI * Frame::cosTheta(bRec.wo);
     }
 
     if (hasSpecular) {
@@ -301,22 +277,14 @@ public:
 			const Float F = fresnelConductorExact(dot(bRec.wi, H), 0.0f, 1.0f);
 			const Float G = distr.G(bRec.wi, bRec.wo, H);
 			const Float D = distr.eval(H);
-      result += F * G * D / (4.0f * Frame::cosTheta(bRec.wi)) * specColor;
+      result += F * G * D / (4.0f * Frame::cosTheta(bRec.wi)) * specular;
     }
     
     return result;
 
   }
 
-#define COSINE_PDF 0
   Float pdf(const BSDFSamplingRecord &bRec, EMeasure measure) const {
-#if COSINE_PDF
-    if (!(bRec.typeMask & EDiffuseReflection) || measure != ESolidAngle
-      || Frame::cosTheta(bRec.wi) <= 0
-      || Frame::cosTheta(bRec.wo) <= 0)
-      return 0.0f;
-    return warp::squareToCosineHemispherePdf(bRec.wo);
-#else
 		if (Frame::cosTheta(bRec.wi) <= 1.0e-3f ||
 			Frame::cosTheta(bRec.wo) <= 0 || measure != ESolidAngle)
 			return 0.0f;
@@ -330,20 +298,12 @@ public:
 		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
 
 		Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
-		Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
-		Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
-
-		Float r = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
-		Float g = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
-		Float b = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-
-		Float dr = oneMinusReflectivity * r;
-		Float dg = oneMinusReflectivity * g;
-		Float db = oneMinusReflectivity * b;
-
-		Float sr = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * r;
-		Float sg = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * g;
-		Float sb = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * b;
+		Float dr = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+		Float dg = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+		Float db = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+    Float sr = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+    Float sg = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+    Float sb = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
 
 		Float pd = std::max(dr, std::max(dg, db));
 		Float ps = std::max(sr, std::max(sg, sb));
@@ -373,8 +333,6 @@ public:
 			return specularPdf;
 		else
 			return 0.0f;
-
-#endif
   }
 
   Spectrum sample(BSDFSamplingRecord &bRec, const Point2 &sample) const {
@@ -383,16 +341,6 @@ public:
   }
 
   Spectrum sample(BSDFSamplingRecord &bRec, Float &_pdf, const Point2 &_sample) const {
-#if COSINE_PDF
-    if (!(bRec.typeMask & EDiffuseReflection) || Frame::cosTheta(bRec.wi) <= 0)
-      return Spectrum(0.0f);
-    bRec.wo = warp::squareToCosineHemisphere(_sample);
-    bRec.sampledComponent = 0;
-    bRec.sampledType = EDiffuseReflection;
-    bRec.eta = 1.0f;
-    _pdf = warp::squareToCosineHemispherePdf(bRec.wo);
-    return eval(bRec, ESolidAngle) / _pdf;
-#else
 		Point2 sample(_sample);
 		bool hasSpecular = (bRec.typeMask & EGlossyReflection)
 			&& (bRec.component == -1 || bRec.component == 0);
@@ -402,21 +350,13 @@ public:
 		const Float colorSpaceDielectricSpecRgb = 0.04f;
 		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
 
-		Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
-		Float metallic = m_evaluator.getMetallic(bRec.its.uv.x, bRec.its.uv.y, m_time);
-		Float oneMinusReflectivity = colorSpaceDielectricSpecA * (1.0f - metallic);
-
-		Float r = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
-		Float g = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
-		Float b = m_evaluator.getAlbedo(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
-
-		Float dr = oneMinusReflectivity * r;
-		Float dg = oneMinusReflectivity * g;
-		Float db = oneMinusReflectivity * b;
-
-		Float sr = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * r;
-		Float sg = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * g;
-		Float sb = (1.0f - metallic) * colorSpaceDielectricSpecRgb + metallic * b;
+    Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
+    Float dr = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+    Float dg = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+    Float db = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+    Float sr = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
+    Float sg = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
+    Float sb = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
 
 		Float pd = std::max(dr, std::max(dg, db));
 		Float ps = std::max(sr, std::max(sg, sb));
@@ -474,7 +414,6 @@ public:
 			return Spectrum(0.0f);
 		else
 			return eval(bRec, ESolidAngle) / _pdf;
-#endif
   }
 
   void serialize(Stream *stream, InstanceManager *manager) const {
