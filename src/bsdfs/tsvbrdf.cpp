@@ -41,7 +41,7 @@ protected:
 
 class PolyEvaluator : public  TSVBRDFEvaluator {
 public:
-  static const int DEGREE = 5;
+  static const int DEGREE = 3;
   struct Parameter {
     cv::Mat coefs[DEGREE + 1];
   };
@@ -67,7 +67,7 @@ public:
 
     // Roughness.
     for (int d = 0; d <= DEGREE; ++d) {
-      img = cv::imread(filepath + "/Rougness-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
+      img = cv::imread(filepath + "/Roughness-" + std::to_string(d) + ".exr", CV_LOAD_IMAGE_UNCHANGED);
       cv::extractChannel(img, m_roughness.coefs[d], 0);
     }
 
@@ -200,8 +200,8 @@ private:
   Parameter m_roughness;
 };
 
-//typedef PolyEvaluator Evaluator;
-typedef FrameEvaluator Evaluator;
+typedef PolyEvaluator Evaluator;
+//typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
