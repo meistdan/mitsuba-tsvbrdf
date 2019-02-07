@@ -200,8 +200,8 @@ private:
   Parameter m_roughness;
 };
 
-typedef PolyEvaluator Evaluator;
-//typedef FrameEvaluator Evaluator;
+//typedef PolyEvaluator Evaluator;
+typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
@@ -259,12 +259,12 @@ public:
     bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
       && (bRec.component == -1 || bRec.component == 1);
 
-    const Spectrum colorSpaceDielectricSpecRgb(0.04f);
-    const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
-
     Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
     Spectrum diffuse = getDiffuse(bRec.its);
     Spectrum specular = getSpecular(bRec.its);
+
+		if (diffuse.isZero()) hasDiffuse = false;
+		if (specular.isZero()) hasSpecular = false;
 
     Spectrum result(0.0f);
     if (hasDiffuse) {
@@ -294,9 +294,6 @@ public:
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
 
-		const Float colorSpaceDielectricSpecRgb = 0.04f;
-		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
-
 		Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
 		Float dr = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
 		Float dg = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
@@ -304,6 +301,9 @@ public:
     Float sr = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
     Float sg = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
     Float sb = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+
+		if (dr == 0.0f && dg == 0.0f && db == 0.0f) hasDiffuse = false;
+		if (sr == 0.0f && sg == 0.0f && sb == 0.0f) hasSpecular = false;
 
 		Float pd = std::max(dr, std::max(dg, db));
 		Float ps = std::max(sr, std::max(sg, sb));
@@ -347,9 +347,6 @@ public:
 		bool hasDiffuse = (bRec.typeMask & EDiffuseReflection)
 			&& (bRec.component == -1 || bRec.component == 1);
 
-		const Float colorSpaceDielectricSpecRgb = 0.04f;
-		const Float colorSpaceDielectricSpecA = 1.0f - 0.04f;
-
     Float roughness = m_evaluator.getRoughness(bRec.its.uv.x, bRec.its.uv.y, m_time);
     Float dr = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
     Float dg = m_evaluator.getDiffuse(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
@@ -357,6 +354,9 @@ public:
     Float sr = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 0);
     Float sg = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 1);
     Float sb = m_evaluator.getSpecular(bRec.its.uv.x, bRec.its.uv.y, m_time, 2);
+
+		if (dr == 0.0f && dg == 0.0f && db == 0.0f) hasDiffuse = false;
+		if (sr == 0.0f && sg == 0.0f && sb == 0.0f) hasSpecular = false;
 
 		Float pd = std::max(dr, std::max(dg, db));
 		Float ps = std::max(sr, std::max(sg, sb));
