@@ -1,5 +1,5 @@
 # Mitsuba - TSVBRDF
-A modified version of the <a href="https://github.com/mitsuba-renderer/mitsuba">Mitsuba</a> renderer customized for the Spatio-Temporal BRDFs project.
+A modified version of the <a href="https://github.com/mitsuba-renderer/mitsuba">Mitsuba</a> renderer customized for the <a href="https://www.sciencedirect.com/science/article/abs/pii/S0097849321000431">Spatio-Temporal BRDFs</a> project.
 
 ## Usage
 The projects is implemented as a BSDF plugin that can be used like other BSDF plugins.
@@ -31,7 +31,7 @@ Tested with Visual Studio 2015 (x64).
 Mitsuba is licenced under GNU General Public License v3.0. Our code is released into the public domain.
 
 ## Citation
-If you use this code, please cite:
+If you use this code, please cite <a href="https://www.sciencedirect.com/science/article/abs/pii/S0097849321000431">the paper</a>:
 ```
 @Article{Meister2021,
 	author = {Daniel Meister and Adam Posp\'{\i}\v{s}il and Imari Sato and Ji\v{r}\'{\i} Bittner},
