@@ -23,6 +23,13 @@ data/scenes/teapot/scene.sh
 ```
 Note that you might need to adjust path and other in the script.
 
+## Dependencies
+We use <a href="https://opencv.org/">OpenCV</a> for the data manipulation besides Mitsuba dependencies.
+Tested with Visual Studio 2015 (x64).
+
+## License
+Mitsuba is licenced under GNU General Public License v3.0. Our code is released into the public domain.
+
 ## Citation
 If you use this code, please cite:
 ```
