@@ -29,7 +29,7 @@ MTS_NAMESPACE_BEGIN
 
 class TSVBRDFEvaluator {
 public:
-	static const int TEX_REPEAT = 4;
+	static const int TEX_REPEAT = 1;
   virtual void load(const std::string &filepath) = 0;
   virtual Float getDiffuse(Float u, Float v, Float t, int c) const = 0;
   virtual Float getSpecular(Float u, Float v, Float t, int c) const = 0;
@@ -200,8 +200,8 @@ private:
   Parameter m_roughness;
 };
 
-//typedef PolyEvaluator Evaluator;
-typedef FrameEvaluator Evaluator;
+typedef PolyEvaluator Evaluator;
+//typedef FrameEvaluator Evaluator;
 
 class TSVBRDF : public BSDF {
 public:
