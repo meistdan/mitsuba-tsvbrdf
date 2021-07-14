@@ -34,11 +34,11 @@ Mitsuba is licenced under GNU General Public License v3.0. Our code is released 
 If you use this code, please cite <a href="https://www.sciencedirect.com/science/article/abs/pii/S0097849321000431">the paper</a>:
 ```
 @Article{Meister2021,
-	author = {Daniel Meister and Adam Posp\'{\i}\v{s}il and Imari Sato and Ji\v{r}\'{\i} Bittner},
-	title = {{Spatio-Temporal BRDF: Modeling and Synthesis}},
-	journal = {Computers and Graphics},
-  volume = {97},
-  pages = {279-291},
-	year = {2021},
+ author = {Daniel Meister and Adam Posp\'{\i}\v{s}il and Imari Sato and Ji\v{r}\'{\i} Bittner},
+ title = {{Spatio-Temporal BRDF: Modeling and Synthesis}},
+ journal = {Computers and Graphics},
+ volume = {97},
+ pages = {279-291},
+ year = {2021},
 }
 ```
